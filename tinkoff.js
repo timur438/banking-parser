@@ -1,4 +1,7 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+
+puppeteer.use(StealthPlugin());
 
 async function findWords(page, wordsToFind) {
     if (!Array.isArray(wordsToFind) || wordsToFind.length === 0) {
@@ -20,8 +23,11 @@ async function main() {
     const browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
 
+    // Устанавливаем пользовательский агент
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36');
+
     // Переходим на сайт и ждем редиректа
-    await page.goto('https://www.tinkoff.ru/auth/login/', { waitUntil: 'networkidle2' });
+    await page.goto('https://www.tbank.ru/auth/login/?redirectTo=%2Fmybank%2F', { waitUntil: 'networkidle2' });
 
     // Ждем навигации после редиректа
     await page.waitForNavigation({ waitUntil: 'networkidle2' });
@@ -30,28 +36,14 @@ async function main() {
     let currentUrl = page.url();
     console.log("Текущий URL:", currentUrl);
 
-    // Извлекаем cid из текущего URL
-    const cidMatch = currentUrl.match(/cid=([^&]+)/);
-    if (cidMatch) {
-        const cid = cidMatch[1];
-        const newUrl = `https://id.tbank.ru/auth/step?cid=${cid}`;
+    // Ждем, пока загрузится определенный элемент на странице
+    await page.waitForSelector('body'); // Можно заменить на более специфичный селектор, если нужно
 
-        // Переходим на новый URL
-        await page.goto(newUrl);
-        console.log("Переход на URL:", newUrl);
-    } else {
-        console.log("Не удалось извлечь cid из URL.");
-        await browser.close();
-        return;
-    }
+    // Выводим HTML-код страницы для отладки
+    const pageContent = await page.content();
+    console.log("HTML-код страницы:", pageContent);
 
-    // Ждем загрузки новой страницы
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
-
-    // Проверяем текущий URL после перехода на новый
-    currentUrl = page.url();
-    console.log("Текущий URL после перехода:", currentUrl);
-
+    // Ищем слова
     const wordsToFind = ['Вход', 'Телефон'];
     const foundWords = await findWords(page, wordsToFind);
     
