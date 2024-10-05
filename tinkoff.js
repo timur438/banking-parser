@@ -4,21 +4,25 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 // Подключаем плагин Stealth
 puppeteer.use(StealthPlugin());
 
-// Функция для поиска слов на странице
 async function findWords(page, wordsToFind) {
-  const foundWords = await page.evaluate((words) => {
-    // Получаем весь текст со страницы
-    const textContent = document.body.innerText;
+    if (!Array.isArray(wordsToFind) || wordsToFind.length === 0) {
+        throw new Error("Список слов для поиска не должен быть пустым.");
+    }
 
-    // Разделяем текст на массив слов
-    const wordsArray = textContent.match(/\b\w+\b/g); // Слова, состоящие из букв и цифр
+    const foundWords = await page.evaluate((words) => {
+        // Получаем весь текст со страницы
+        const textContent = document.body.innerText || "";
+        console.log("Текст страницы:", textContent); // Добавьте отладочный вывод
 
-    // Ищем совпадения
-    const matches = words.filter(word => wordsArray.includes(word));
-    return matches;
-  }, wordsToFind);
+        // Разделяем текст на массив слов
+        const wordsArray = textContent.match(/\b\w+\b/g) || []; // Убедитесь, что wordsArray не равен null
 
-  return foundWords;
+        // Ищем совпадения
+        const matches = words.filter(word => wordsArray.includes(word));
+        return matches;
+    }, wordsToFind);
+
+    return foundWords;
 }
 
 async function main() {
@@ -27,6 +31,7 @@ async function main() {
 
   // Переход к нужной странице
   await page.goto('https://www.tinkoff.ru/auth/login/', { waitUntil: 'networkidle2' });
+  await page.waitForSelector('body');
 
   // Определяем слова для поиска
   const wordsToFind = ['Вход', 'Телефон'];
