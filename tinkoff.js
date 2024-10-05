@@ -1,13 +1,8 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const readline = require('readline');
 
+// Подключаем плагин Stealth
 puppeteer.use(StealthPlugin());
-
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
 
 // Функция для поиска слов на странице
 async function findWords(page, wordsToFind) {
@@ -27,25 +22,65 @@ async function findWords(page, wordsToFind) {
 }
 
 async function main() {
-  const browser = await puppeteer.launch({ headless: false });
+  const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
 
   // Переход к нужной странице
-  await page.goto('https://www.tinkoff.ru/login');
+  await page.goto('https://www.tinkoff.ru/auth/login/', { waitUntil: 'networkidle2' });
 
-  // Ввод слов для поиска
-  const inputWords = await new Promise(resolve => {
-    rl.question('Введите слова для поиска (через запятую): ', input => {
-      resolve(input.split(',').map(word => word.trim()));
+  // Определяем слова для поиска
+  const wordsToFind = ['Вход', 'Телефон'];
+  const foundWords = await findWords(page, wordsToFind);
+
+  // Проверяем, нашли ли необходимые слова
+  const hasLogin = foundWords.includes('Вход');
+  const hasPhone = foundWords.includes('Телефон');
+
+  if (hasLogin && hasPhone) {
+    console.log('Слова "Вход" и "Телефон" найдены.');
+
+    // Находим ближайший инпут к слову "Телефон"
+    const inputSelector = await page.evaluate(() => {
+      const phoneLabel = Array.from(document.querySelectorAll('label')).find(label => label.innerText.includes('Телефон'));
+      if (phoneLabel) {
+        // Находим ближайший инпут к найденному лейблу
+        const input = phoneLabel.closest('form').querySelector('input');
+        return input ? input.name : null; // Возвращаем имя инпута, если он найден
+      }
+      return null;
     });
-  });
 
-  // Поиск слов на странице
-  const foundWords = await findWords(page, inputWords);
-  console.log('Найденные слова:', foundWords);
+    if (inputSelector) {
+      // Попросим пользователя ввести телефон
+      const phoneNumber = await new Promise(resolve => {
+        process.stdin.resume();
+        process.stdout.write('Введите номер телефона: ');
+        process.stdin.once('data', data => {
+          process.stdin.pause();
+          resolve(data.toString().trim());
+        });
+      });
+
+      // Вводим номер телефона
+      await page.type(`input[name="${inputSelector}"]`, phoneNumber);
+
+      // Нажимаем на ближайшую кнопку
+      await page.evaluate(() => {
+        const button = Array.from(document.querySelectorAll('button')).find(btn => btn.innerText.includes('Вход'));
+        if (button) {
+          button.click();
+        }
+      });
+
+      console.log('Номер телефона введён и кнопка нажата.');
+    } else {
+      console.log('Инпут для телефона не найден.');
+    }
+  } else {
+    console.log('Не найдены слова "Вход" или "Телефон".');
+  }
 
   await browser.close();
-  rl.close();
 }
 
 main().catch(console.error);
